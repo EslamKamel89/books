@@ -2,6 +2,7 @@ from typing import Annotated, Optional, Self
 
 from fastapi import FastAPI, HTTPException, Path, Query
 from pydantic import BaseModel, Field
+from starlette import status
 
 app = FastAPI() 
 
@@ -57,13 +58,14 @@ books:list[Book] = [
     Book( 12 , "Deep Work",  "Cal Newport" , 'description 12' , 5 , 1997),
 ]
 
-@(app.get('/'))
+@(app.get('/' , status_code=status.HTTP_200_OK))
 async def  home():
     return {'message' : "Welcome to fastapi books api"}
 
-@(app.get('/books' , response_model=list[BookRequest]))
+@(app.get('/books' , response_model=list[BookRequest] , status_code=status.HTTP_200_OK))
 async def books_index()->list[Book]:
     return books 
+
 @(app.post('/books'))
 async def create_books(book_request:BookRequest  ):
     book_dict = book_request.model_dump()
@@ -71,18 +73,19 @@ async def create_books(book_request:BookRequest  ):
     book =  Book(**book_dict)
     books.append(book)
     return book
-@app.get('/books/{id}' , response_model=BookRequest , summary="Fetch single book by it's id")
+
+@app.get('/books/{id}' , response_model=BookRequest , summary="Fetch single book by it's id" , status_code=status.HTTP_200_OK)
 async def get_book_by_id (id:Annotated[int , Path(description="Book id >= 1" , ge=1)]) :
     for book in books :
         if book.id == id :
             return book 
-    raise HTTPException(404 , f'There are no book with this id: {id}')
+    raise HTTPException(status.HTTP_404_NOT_FOUND , f'There are no book with this id: {id}')
 
-@app.get('/filter-books' , response_model=list[BookRequest]) 
+@app.get('/filter-books' , response_model=list[BookRequest] , status_code=status.HTTP_200_OK) 
 async def filter_books(rating:Annotated[int , Query(description='Book rating [1..5]' , ge=1 , le=5 )]) :
     return [b for b in books if b.rating >= rating]
 
-@app.get('/books-publish/')
+@app.get('/books-publish/' , status_code=status.HTTP_200_OK)
 async def read_books_by_published_date(year:int):
     result: list[Book] = []
     for book in books :
@@ -90,7 +93,7 @@ async def read_books_by_published_date(year:int):
             result.append(book)
     return result 
 
-@app.put('/books/{id}' , response_model=BookRequest)
+@app.put('/books/{id}' , response_model=BookRequest , status_code=status.HTTP_201_CREATED)
 async def update_book(id:Annotated[int , Path(ge=1 , description="the book id must be >= 1")] , book : BookRequest) :
     for i ,b in enumerate(books) :
         if b.id == id :
@@ -98,11 +101,12 @@ async def update_book(id:Annotated[int , Path(ge=1 , description="the book id mu
             book_data['id'] = id 
             books[i] = Book.from_dict(book_data)
             return books[i]
-    raise HTTPException(status_code=404 , detail="Book not found")
-@app.delete('/books/{id}' , response_model=BookRequest)
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND , detail="Book not found")
+
+@app.delete('/books/{id}' , response_model=None , status_code=status.HTTP_204_NO_CONTENT)
 async def delete_book(id : Annotated[int , Path(ge=1 , description="book id must be >= 1")]):
     for i , book in enumerate(books) : 
         if book.id == id :
             books.pop(i)
-            return book
-    raise HTTPException(status_code=404 , detail="Book not found")
+            return None
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND , detail="Book not found")
